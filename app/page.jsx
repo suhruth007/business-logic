@@ -1,8 +1,13 @@
 "use client"
+import dynamic from 'next/dynamic'
 import { useMemo, useState } from 'react'
-import { PDFDownloadLink } from '@react-pdf/renderer'
 import InvoiceDocument from './pdf/InvoiceDocument'
 import { formatINR } from '../lib/invoiceUtils'
+
+const PDFDownloadLink = dynamic(
+  () => import('@react-pdf/renderer').then((mod) => mod.PDFDownloadLink),
+  { ssr: false }
+)
 
 const defaultValues = {
   clientDetails: '',
