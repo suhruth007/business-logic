@@ -1,13 +1,6 @@
 "use client"
-import dynamic from 'next/dynamic'
 import { useMemo, useState } from 'react'
-import InvoiceDocument from './pdf/InvoiceDocument'
 import { formatINR } from '../lib/invoiceUtils'
-
-const PDFDownloadLink = dynamic(
-  () => import('@react-pdf/renderer').then((mod) => mod.PDFDownloadLink),
-  { ssr: false }
-)
 
 const defaultValues = {
   clientDetails: '',
@@ -28,6 +21,7 @@ export default function Page() {
   const [recipientEmail, setRecipientEmail] = useState('')
   const [sendStatus, setSendStatus] = useState('')
   const [sending, setSending] = useState(false)
+  const [downloading, setDownloading] = useState(false)
 
   const invoiceData = useMemo(() => {
     const grossNum = parseFloat(values.grossWeight) || 0
@@ -80,6 +74,33 @@ export default function Page() {
     }
   }
 
+  const handleDownloadInvoice = async () => {
+    setDownloading(true)
+    try {
+      const response = await fetch('/api/download-invoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invoiceData }),
+      })
+      if (!response.ok) {
+        throw new Error('Failed to generate PDF invoice')
+      }
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `invoice-${invoiceData.invoiceNo || 'vibhava'}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      alert(error.message)
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="bg-white shadow rounded-lg p-6">
@@ -89,9 +110,14 @@ export default function Page() {
             <p className="text-sm text-gray-500">Fill the customer and invoice details below.</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
-            <PDFDownloadLink document={<InvoiceDocument data={invoiceData} />} fileName={`invoice-${invoiceData.invoiceNo || 'vibhava'}.pdf`} className="inline-flex items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">
-              {({ loading }) => (loading ? 'Preparing PDF…' : 'Download Invoice PDF')}
-            </PDFDownloadLink>
+            <button
+              type="button"
+              onClick={handleDownloadInvoice}
+              disabled={downloading}
+              className="inline-flex items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+            >
+              {downloading ? 'Generating PDF…' : 'Download Invoice PDF'}
+            </button>
           </div>
         </div>
 
