@@ -1,96 +1,216 @@
 "use client"
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { PDFDownloadLink } from '@react-pdf/renderer'
+import InvoiceDocument from './pdf/InvoiceDocument'
+import { formatINR } from '../lib/invoiceUtils'
 
-function formatINR(value){
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(value)
+const defaultValues = {
+  clientDetails: '',
+  through: '',
+  invoiceNo: '',
+  date: new Date().toISOString().slice(0, 10),
+  gstNo: 'POULTRY USE ONLY',
+  lrNo: '',
+  hsnCode: '',
+  particulars: 'MAIZE',
+  grossWeight: '18440',
+  rate: '25.50',
+  brokerage: '',
 }
 
-export default function Page(){
-  const [gross, setGross] = useState('18440')
-  const [rate, setRate] = useState('25.5')
-  const [brokerage, setBrokerage] = useState('')
+export default function Page() {
+  const [values, setValues] = useState(defaultValues)
+  const [recipientEmail, setRecipientEmail] = useState('')
+  const [sendStatus, setSendStatus] = useState('')
+  const [sending, setSending] = useState(false)
 
-  const grossNum = parseFloat(gross) || 0
-  const rateNum = parseFloat(rate) || 0
-  const brokerageNum = brokerage === '' ? 0.05 : (parseFloat(brokerage) || 0)
+  const invoiceData = useMemo(() => {
+    const grossNum = parseFloat(values.grossWeight) || 0
+    const rateNum = parseFloat(values.rate) || 0
+    const brokerageNum = values.brokerage === '' ? 0.05 : parseFloat(values.brokerage) || 0
+    const deduction = Math.ceil(grossNum * 0.01)
+    const adjustedWeight = Math.max(0, grossNum - deduction)
+    const adjustedRate = rateNum + brokerageNum
+    const amount = adjustedWeight * adjustedRate
+    const bags = Math.round(adjustedWeight / 60)
 
-  const deduction = Math.ceil(grossNum * 0.01)
-  const adjustedWeight = Math.max(0, grossNum - deduction)
-  const adjustedRate = rateNum + brokerageNum
-  const totalAmount = adjustedWeight * adjustedRate
-  const bags = Math.round(adjustedWeight / 60)
+    return {
+      ...values,
+      deduction,
+      adjustedWeight,
+      adjustedRate,
+      amount,
+      bags,
+    }
+  }, [values])
+
+  const handleChange = (field) => (event) => {
+    setValues((prev) => ({ ...prev, [field]: event.target.value }))
+  }
+
+  const handleSendInvoice = async () => {
+    if (!recipientEmail) {
+      setSendStatus('Enter an email recipient before sending.')
+      return
+    }
+
+    setSending(true)
+    setSendStatus('Sending invoice...')
+
+    try {
+      const response = await fetch('/api/send-invoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invoiceData, recipientEmail }),
+      })
+
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Email send failed')
+
+      setSendStatus('Invoice emailed successfully.')
+    } catch (error) {
+      setSendStatus(`Error: ${error.message}`)
+    } finally {
+      setSending(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
       <div className="bg-white shadow rounded-lg p-6">
-        <h2 className="text-xl font-semibold mb-4">Invoice Calculator</h2>
-        <p className="text-sm text-gray-500 mb-4">Products: Maize, Broken Rice, Poultry Ingredients</p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <div>
+            <h2 className="text-2xl font-semibold">Vibhava Enterprises Invoice Generator</h2>
+            <p className="text-sm text-gray-500">Fill the customer and invoice details below.</p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <PDFDownloadLink document={<InvoiceDocument data={invoiceData} />} fileName={`invoice-${invoiceData.invoiceNo || 'vibhava'}.pdf`} className="inline-flex items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">
+              {({ loading }) => (loading ? 'Preparing PDF…' : 'Download Invoice PDF')}
+            </PDFDownloadLink>
+          </div>
+        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {[
+            { label: 'Client Details (M/S)', field: 'clientDetails' },
+            { label: 'Through', field: 'through' },
+            { label: 'Invoice No', field: 'invoiceNo' },
+            { label: 'Date', field: 'date', type: 'date' },
+            { label: 'GST No', field: 'gstNo', placeholder: 'POULTRY USE ONLY' },
+            { label: 'L.R. No', field: 'lrNo' },
+            { label: 'HSN Code', field: 'hsnCode' },
+            { label: 'Particulars', field: 'particulars', placeholder: 'MAIZE' },
+          ].map(({ label, field, type = 'text', placeholder }) => (
+            <label key={field} className="flex flex-col">
+              <span className="text-sm font-medium text-gray-700">{label}</span>
+              <input
+                type={type}
+                value={values[field]}
+                placeholder={placeholder || ''}
+                onChange={handleChange(field)}
+                className="mt-1 block w-full rounded-md border-gray-200 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500"
+              />
+            </label>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
           <label className="flex flex-col">
             <span className="text-sm font-medium text-gray-700">Gross Weight (Kg)</span>
             <input
               type="number"
-              className="mt-1 block w-full rounded-md border-gray-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-              value={gross}
-              onChange={e=>setGross(e.target.value)}
-              />
+              step="1"
+              value={values.grossWeight}
+              onChange={handleChange('grossWeight')}
+              className="mt-1 block w-full rounded-md border-gray-200 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500"
+            />
           </label>
-
           <label className="flex flex-col">
             <span className="text-sm font-medium text-gray-700">Rate (per Kg)</span>
             <input
               type="number"
               step="0.01"
-              className="mt-1 block w-full rounded-md border-gray-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-              value={rate}
-              onChange={e=>setRate(e.target.value)}
-              />
+              value={values.rate}
+              onChange={handleChange('rate')}
+              className="mt-1 block w-full rounded-md border-gray-200 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500"
+            />
           </label>
-
           <label className="flex flex-col">
-            <span className="text-sm font-medium text-gray-700">Brokerage (per Kg) — default Rs 5/quintal</span>
+            <span className="text-sm font-medium text-gray-700">Brokerage (per Kg)</span>
             <input
               type="number"
               step="0.01"
+              value={values.brokerage}
               placeholder="0.05"
-              className="mt-1 block w-full rounded-md border-gray-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-              value={brokerage}
-              onChange={e=>setBrokerage(e.target.value)}
-              />
+              onChange={handleChange('brokerage')}
+              className="mt-1 block w-full rounded-md border-gray-200 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500"
+            />
           </label>
         </div>
       </div>
 
       <div className="bg-white shadow rounded-lg p-6">
-        <h3 className="text-lg font-semibold mb-4">Calculated Results</h3>
-
-        <div className="grid grid-cols-1 gap-3">
-          <div className="flex justify-between">
-            <span className="text-sm text-gray-600">Deduction (1% rounded up)</span>
-            <span className="font-medium">{deduction} Kg</span>
+        <h3 className="text-xl font-semibold mb-4">Calculated Summary</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="rounded-lg border border-gray-200 p-4">
+            <div className="flex justify-between text-sm text-gray-600 mb-2">
+              <span>Deduction</span>
+              <span>{invoiceData.deduction} Kg</span>
+            </div>
+            <div className="flex justify-between text-sm text-gray-600 mb-2">
+              <span>Adjusted Weight</span>
+              <span>{invoiceData.adjustedWeight} Kg</span>
+            </div>
+            <div className="flex justify-between text-sm text-gray-600 mb-2">
+              <span>Adjusted Rate</span>
+              <span>{invoiceData.adjustedRate.toFixed(2)} / Kg</span>
+            </div>
+            <div className="flex justify-between text-sm text-gray-600 mb-2">
+              <span>Amount</span>
+              <span>{formatINR(invoiceData.amount)}</span>
+            </div>
+            <div className="flex justify-between text-sm text-gray-600">
+              <span>Bags</span>
+              <span>{invoiceData.bags} bag(s)</span>
+            </div>
           </div>
-
-          <div className="flex justify-between">
-            <span className="text-sm text-gray-600">Adjusted Weight</span>
-            <span className="font-medium">{adjustedWeight} Kg</span>
-          </div>
-
-          <div className="flex justify-between">
-            <span className="text-sm text-gray-600">Adjusted Rate</span>
-            <span className="font-medium">{adjustedRate.toFixed(2)} / Kg</span>
-          </div>
-
-          <div className="flex justify-between">
-            <span className="text-sm text-gray-600">Total Amount</span>
-            <span className="font-medium">{formatINR(totalAmount)}</span>
-          </div>
-
-          <div className="flex justify-between">
-            <span className="text-sm text-gray-600">Number of Bags (60 Kg)</span>
-            <span className="font-medium">{bags} bag(s)</span>
+          <div className="rounded-lg border border-gray-200 p-4">
+            <div className="text-sm text-gray-600">Invoice Preview Notes</div>
+            <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-gray-700">
+              <li>Gross Weight shows under Quintals</li>
+              <li>Deduction is 1% rounded up</li>
+              <li>Watermark appears on generated PDF</li>
+              <li>Amount is converted to words in the PDF</li>
+            </ul>
           </div>
         </div>
+      </div>
+
+      <div className="bg-white shadow rounded-lg p-6">
+        <h3 className="text-xl font-semibold mb-4">Email Invoice</h3>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <label className="flex flex-col lg:col-span-2">
+            <span className="text-sm font-medium text-gray-700">Recipient Email</span>
+            <input
+              type="email"
+              value={recipientEmail}
+              onChange={(e) => setRecipientEmail(e.target.value)}
+              className="mt-1 block w-full rounded-md border-gray-200 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500"
+              placeholder="customer@example.com"
+            />
+          </label>
+          <div className="flex items-end">
+            <button
+              type="button"
+              onClick={handleSendInvoice}
+              disabled={sending}
+              className="inline-flex w-full items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+            >
+              {sending ? 'Sending…' : 'Send Invoice by Email'}
+            </button>
+          </div>
+        </div>
+        {sendStatus ? <p className="mt-3 text-sm text-gray-700">{sendStatus}</p> : null}
       </div>
     </div>
   )
