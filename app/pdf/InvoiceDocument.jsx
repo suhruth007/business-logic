@@ -35,33 +35,52 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 5,
   },
+  gridRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  gridCell: {
+    width: '48%',
+    paddingVertical: 2,
+    flexDirection: 'column',
+  },
   label: {
     fontWeight: 'bold',
+    marginBottom: 2,
   },
   tableHeader: {
     flexDirection: 'row',
     borderBottomWidth: 1,
     borderTopWidth: 1,
     borderColor: '#222222',
-    paddingVertical: 5,
+    paddingVertical: 7,
     marginBottom: 3,
+    alignItems: 'center',
   },
   tableRow: {
     flexDirection: 'row',
     borderBottomWidth: 1,
     borderColor: '#ddd',
-    paddingVertical: 6,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  numericCell: {
+    textAlign: 'right',
+  },
+  particularsCell: {
+    justifyContent: 'space-between',
   },
   cell: {
     paddingHorizontal: 4,
     fontSize: 9,
   },
-  slNo: { width: '8%' },
-  particulars: { width: '28%' },
-  hsn: { width: '16%' },
-  quant: { width: '16%' },
+  slNo: { width: '7%' },
+  particulars: { width: '30%' },
+  hsn: { width: '13%' },
+  quant: { width: '18%' },
   rate: { width: '16%' },
-  amount: { width: '16%' },
+  amount: { width: '18%' },
   sideRow: {
     flexDirection: 'row',
   },
@@ -162,27 +181,27 @@ const InvoiceDocument = ({ data }) => {
         <View style={styles.tableHeader}>
           <Text style={[styles.cell, styles.slNo, styles.bold]}>Sl.No</Text>
           <Text style={[styles.cell, styles.particulars, styles.bold]}>PARTICULARS</Text>
-          <Text style={[styles.cell, styles.hsn, styles.bold]}>HSN CODE</Text>
-          <Text style={[styles.cell, styles.quant, styles.bold]}>Quintals</Text>
-          <Text style={[styles.cell, styles.rate, styles.bold]}>Rate</Text>
-          <Text style={[styles.cell, styles.amount, styles.bold]}>Amount (Rs. Ps.)</Text>
+          <Text style={[styles.cell, styles.hsn, styles.bold, styles.numericCell]}>HSN CODE</Text>
+          <Text style={[styles.cell, styles.quant, styles.bold, styles.numericCell]}>Quintals</Text>
+          <Text style={[styles.cell, styles.rate, styles.bold, styles.numericCell]}>Rate</Text>
+          <Text style={[styles.cell, styles.amount, styles.bold, styles.numericCell]}>Amount (Rs. Ps.)</Text>
         </View>
 
         <View style={styles.tableRow}>
           <Text style={[styles.cell, styles.slNo]}>1</Text>
-          <View style={[styles.cell, styles.particulars]}>
+          <View style={[styles.cell, styles.particulars, styles.particularsCell]}>
             <Text>{data.particulars || ''}</Text>
             <Text style={styles.smallText}>BAG {bags}</Text>
           </View>
-          <Text style={[styles.cell, styles.hsn]}>{data.hsnCode || ''}</Text>
-          <View style={[styles.cell, styles.quant]}>
+          <Text style={[styles.cell, styles.hsn, styles.numericCell]}>{data.hsnCode || ''}</Text>
+          <View style={[styles.cell, styles.quant, { flexDirection: 'column', alignItems: 'flex-end' }]}> 
             <Text>{grossNum}</Text>
             <Text>- {deduction}</Text>
-            <View style={{ borderBottomWidth: 1, borderColor: '#222', marginVertical: 2 }} />
+            <View style={{ borderBottomWidth: 1, borderColor: '#222', marginVertical: 2, width: '100%' }} />
             <Text style={styles.bold}>{adjustedWeight}</Text>
           </View>
-          <Text style={[styles.cell, styles.rate]}>{adjustedRate.toFixed(2)}</Text>
-          <Text style={[styles.cell, styles.amount]}>{formatINR(amount)}</Text>
+          <Text style={[styles.cell, styles.rate, styles.numericCell]}>{adjustedRate.toFixed(2)}</Text>
+          <Text style={[styles.cell, styles.amount, styles.numericCell]}>{formatINR(amount)}</Text>
         </View>
 
         <View style={{ marginTop: 10 }}>
